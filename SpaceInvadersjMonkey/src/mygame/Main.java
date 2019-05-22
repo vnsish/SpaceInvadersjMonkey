@@ -1,6 +1,10 @@
 package mygame;
 
 import com.jme3.app.SimpleApplication;
+import com.jme3.bounding.BoundingVolume;
+import com.jme3.collision.CollisionResults;
+import com.jme3.effect.ParticleEmitter;
+import com.jme3.effect.ParticleMesh;
 import com.jme3.input.KeyInput;
 import com.jme3.input.MouseInput;
 import com.jme3.input.controls.ActionListener;
@@ -131,6 +135,20 @@ public class Main extends SimpleApplication {
                 rootNode.getChild("Shot").setLocalTranslation(0, -20, 0);
                 player.setShooting(false);
             }
+            
+            CollisionResults results = new CollisionResults();
+            BoundingVolume bv = rootNode.getChild("UFO").getWorldBound();
+            rootNode.getChild("Shot").collideWith(bv, results);
+            if (results.size() > 0)
+            {
+                explode(rootNode.getChild("UFO").getLocalTranslation());
+                rootNode.getChild("UFO").setLocalTranslation(saucerDir * 6, 3.5f, 0);
+                saucerActive = false;
+                nextSaucer = gameTick + 50;
+
+            }
+            
+            
         }
         
     }
@@ -243,5 +261,26 @@ public class Main extends SimpleApplication {
         boxGeo.setMaterial(boxMat);
         boxGeo.move(0, -20, 0);
         rootNode.attachChild(boxGeo);
+    }
+    
+    public void explode(Vector3f position)
+    {
+        ParticleEmitter debrisEffect = new ParticleEmitter("Debris", ParticleMesh.Type.Triangle, 10);
+        debrisEffect.setLocalTranslation(position);
+        Material debrisMat = new Material(assetManager, "Common/MatDefs/Misc/Particle.j3md");
+        debrisMat.setTexture("Texture", assetManager.loadTexture("Textures/Debris.png"));
+        debrisEffect.setMaterial(debrisMat);
+        debrisEffect.setImagesX(3);
+        debrisEffect.setImagesY(3); // 3x3 texture animation
+        debrisEffect.setRotateSpeed(4);
+        debrisEffect.setSelectRandomImage(true);
+        debrisEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, 4, 0));
+        debrisEffect.setParticlesPerSec(0);
+        debrisEffect.setStartColor(new ColorRGBA(1f, 1f, 1f, 1f));
+        debrisEffect.setGravity(0f, 2f, 0f);
+        debrisEffect.setHighLife(0.25f);
+        debrisEffect.getParticleInfluencer().setVelocityVariation(.60f);
+        rootNode.attachChild(debrisEffect);
+        debrisEffect.emitAllParticles();
     }
 }
