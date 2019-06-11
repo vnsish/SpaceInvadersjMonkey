@@ -5,6 +5,8 @@ import com.jme3.animation.AnimControl;
 import com.jme3.animation.AnimEventListener;
 import com.jme3.animation.LoopMode;
 import com.jme3.app.SimpleApplication;
+import com.jme3.audio.AudioData.DataType;
+import com.jme3.audio.AudioNode;
 import com.jme3.bounding.BoundingVolume;
 import com.jme3.collision.CollisionResults;
 import com.jme3.effect.ParticleEmitter;
@@ -32,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Random;
 import java.time.Instant;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * This is the Main Class of your Game. You should only do initialization here.
@@ -48,12 +51,13 @@ public class Main extends SimpleApplication
     private ArrayList<Star> stars = new ArrayList<Star>();
     Random random = new Random();
     private Player player;
-    private long gameTick = 1, nextSaucer = 50, tickSpeed = 8;
+    private long gameTick = 1, nextSaucer = 50, tickSpeed = 8, nextShot = 30;
     private Instant start, end;
-    private boolean saucerActive = false, gameRunning = false;
+    private boolean saucerActive = false, enemyShooting = false, gameRunning = false;
     float[] movetable = new float[]{0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0};
     float[] movetable_y = new float[]{0, 0, 0, 0, 0, 0, 0, 0, -0.25f};
     int movetable_cur = 0, mov_dir = 1;
+    AudioNode explosion_audio, shot_audio;
     BitmapText pointsText, gameoverText, hudText, victoryText;
 
     public static void main(String[] args) {
@@ -83,6 +87,7 @@ public class Main extends SimpleApplication
 
         initKeys();
         initGui();
+        initAudio();
 
     }
 
@@ -107,9 +112,13 @@ public class Main extends SimpleApplication
         
         player.setShooting(false);
         rootNode.getChild("Shot").setLocalTranslation(0, -20, 0);
+        enemyShooting = false;
+        rootNode.getChild("EnemyShot").setLocalTranslation(0, 20, 0);
 
+        
         gameTick = 1;
         nextSaucer = 100;
+        nextShot = 30;
         tickSpeed = 14;
         defeated = 0;
         enemycount = 0;
@@ -156,6 +165,8 @@ public class Main extends SimpleApplication
 
                     shootables.move((float) movetable[movetable_cur] * mov_dir, movetable_y[movetable_cur++], 0);
                 }
+                
+                if  (gameTick % nextShot == 0 && !enemyShooting) enemyShoot();
             }
 
             if (nextSaucer - gameTick == 0 && !saucerActive) {
@@ -185,6 +196,18 @@ public class Main extends SimpleApplication
                    }
             }
             
+            if(player.getShip().getLocalTranslation().x < (rootNode.getChild("EnemyShot").getLocalTranslation().x + 0.25f)
+                && player.getShip().getLocalTranslation().x > (rootNode.getChild("EnemyShot").getLocalTranslation().x - 0.25f)
+                && player.getShip().getLocalTranslation().y < (rootNode.getChild("EnemyShot").getLocalTranslation().y + 0.25f)
+                && player.getShip().getLocalTranslation().y > (rootNode.getChild("EnemyShot").getLocalTranslation().y - 0.25f))
+            {
+                explode(player.getShip().getLocalTranslation().x, player.getShip().getLocalTranslation().y);
+                rootNode.detachChildNamed("Ship");
+                guiNode.attachChild(gameoverText);
+                guiNode.attachChild(hudText);
+                gameRunning = false;
+            }
+            
             if(shootables.getLocalTranslation().y < -5.5f)
             {
                        guiNode.attachChild(gameoverText);
@@ -197,6 +220,18 @@ public class Main extends SimpleApplication
                 guiNode.attachChild(victoryText);
                 guiNode.attachChild(hudText);
                 gameRunning = false;
+            }
+            
+            if(enemyShooting)
+            {
+                rootNode.getChild("EnemyShot").move(0, -tpf*5, 0);
+                
+                if(rootNode.getChild("EnemyShot").getLocalTranslation().y < -6) 
+                {
+                    rootNode.getChild("EnemyShot").setLocalTranslation(0, 20, 0);
+                    nextShot = gameTick + (tickSpeed*5);
+                    enemyShooting = false;
+                }
             }
 
             if (player.isShooting()) {
@@ -326,6 +361,7 @@ public class Main extends SimpleApplication
 
     public void playerShoot() {
         player.setShooting(true);
+        shot_audio.playInstance();
         rootNode.getChild("Shot").setLocalTranslation(rootNode.getChild("Ship").getLocalTranslation().x, -2.5f, 0);
     }
 
@@ -358,6 +394,19 @@ public class Main extends SimpleApplication
             spawnAlien(2, x, 1.5f);
             spawnAlien(3, x, 0.5f);
         }
+    }
+    
+    public void enemyShoot() {
+        
+        List<Spatial> allEnemies = shootables.getChildren();
+        int shooting = random.nextInt(allEnemies.size());
+        print(allEnemies.size());
+        print(shooting);
+        rootNode.getChild("EnemyShot").setLocalTranslation(allEnemies.get(shooting).getLocalTranslation().x + shootables.getLocalTranslation().x,
+        allEnemies.get(shooting).getLocalTranslation().y + shootables.getLocalTranslation().y,
+        allEnemies.get(shooting).getLocalTranslation().z + shootables.getLocalTranslation().z);
+        enemyShooting = true;
+        
     }
     
     public void initGui()
@@ -436,8 +485,37 @@ public class Main extends SimpleApplication
         boxGeo.setMaterial(boxMat);
         boxGeo.move(0, -20, 0);
         rootNode.attachChild(boxGeo);
+        
+        Geometry enemyShot = new Geometry("EnemyShot", boxMesh);
+        Material enemyShotMat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        enemyShotMat.setColor("Color", ColorRGBA.Yellow);
+        enemyShot.setMaterial(enemyShotMat);
+        enemyShot.move(0, 20, 0);
+        rootNode.attachChild(enemyShot);
     }
 
+    public void initAudio() {
+        /* gun shot sound is to be triggered by a mouse click. */
+        shot_audio = new AudioNode(assetManager, "Sounds/shot.wav", DataType.Buffer);
+        shot_audio.setPositional(false);
+        shot_audio.setLooping(false);
+        shot_audio.setVolume(2);
+        rootNode.attachChild(shot_audio);
+        
+        explosion_audio = new AudioNode(assetManager, "Sounds/explosion.wav", DataType.Buffer);
+        explosion_audio.setPositional(false);
+        explosion_audio.setLooping(false);
+        explosion_audio.setVolume(2);
+        rootNode.attachChild(shot_audio);
+        
+        AudioNode bgm = new AudioNode(assetManager, "Sounds/bgm.ogg", DataType.Buffer);
+        bgm.setPositional(false);
+        bgm.setLooping(false);
+        bgm.setVolume(1);
+        rootNode.attachChild(bgm);
+        bgm.play();
+    }
+    
     public void explode(float x, float y) {
         ParticleEmitter debrisEffect = new ParticleEmitter("Debris", ParticleMesh.Type.Triangle, 10);
         debrisEffect.setLocalTranslation(x, y, 0);
@@ -456,6 +534,7 @@ public class Main extends SimpleApplication
         debrisEffect.setEndSize(0.5f);
         debrisEffect.getParticleInfluencer().setVelocityVariation(.60f);
         rootNode.attachChild(debrisEffect);
+        explosion_audio.playInstance();
         debrisEffect.emitAllParticles();
     }
 }

@@ -34,11 +34,10 @@ public class Player {
     }
     
     public Player(AssetManager assetManager){
-        ship = assetManager.loadModel("Models/ship.j3o");
-        ship.scale(0.5f);
+        ship = assetManager.loadModel("Models/bettership.j3o");
+        ship.scale(1f);
         ship.move(0, -3, 0);
-        ship.rotate(90, 0, 0);
-        
+        ship.rotate(180, 0, 0);
     }
     
 }
